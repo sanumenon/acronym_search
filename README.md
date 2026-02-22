@@ -17,81 +17,88 @@ openpyxl
 
 ### 2. `README.md`
 
-# Charity Search Accuracy Tool (v1 & v2 Comparison)
-
-## The Business Case: "Reducing Friction for Donors"
-
-Donors often search for charities using shorthand names, acronyms, or partial titles (e.g., searching for **"MTYP"** instead of **"Manitoba's Theatre for Young People Inc."**). If our search engine doesn't recognize these variations, we lose potential donations.
-
-This tool was built to validate and prove the impact of our new **Search-v1 API**. By using AI-generated acronyms and "hybrid" name combinations, we are moving the needle from a **30% success rate** to nearly **91%**, ensuring that when a donor wants to give, they find their charity instantly.
+To help your developers act on the findings quickly, here is the updated **README.md** including the **Elasticsearch Boosting** section and a comprehensive breakdown of the project requirements, file functions, and business context.
 
 ---
 
-## What do these files do?
+#  Charity Search Discovery & Relevancy Engine
 
-### `search_runner.py` (The Engine)
+## 1. Business Case: "The Discovery Gap"
 
-This is the workhorse of the project.
-
-* **Hybrid Acronym Generation:** It takes the official name of a charity and logically creates permutations. It generates full acronyms (**MTYP**), dotted versions (**M.T.Y.P.**), and hybrid versions (**Manitoba T for Young People**).
-* **Parallel API Execution:** To handle large datasets (like 200,000+ records), it uses 25 parallel threads to call the Old and New APIs simultaneously.
-* **Incremental Saving:** It processes data in batches of 1,000 and saves as it goes. If the power cuts out or the internet drops, you won’t lose your progress.
-* **Progress Tracking:** Includes a real-time progress bar (tqdm) showing speed and ETA.
-
-### `generate_report.py` (The Brain)
-
-This script turns raw data into a narrative that leadership can understand.
-
-* **Rank Logic:** It compares the search results against the "Official Name" to see if the charity appeared in the Top 3 results.
-* **Executive Summary:** Automatically generates a high-level dashboard for Senior Leadership (SLT) showing metrics like "Unlocked Charities" and "Discovery Rate."
-* **Developer Debug Log:** Flags specific issues like **Regressions** (where the old search performed better than the new) or **Tuning** (where a match was found but ranked too low).
+Donors predominantly use shorthand—acronyms, partial names, or dotted variations—when searching for charities (e.g., **"MTYP"** or **"M.T.Y.P."** instead of **"Manitoba Theatre for Young People"**). If the search engine fails to map these shorthand terms to official legal names, donors see "No Results," leading to lost donation opportunities. This tool identifies those gaps by testing every possible naming permutation against our APIs to ensure a **100% Discovery Rate**.
 
 ---
 
-## How to Run It
+## 2. Project Requirements
 
-### 1. Setup
+* **Input Data**: A CSV or Excel file containing charity names and known acronyms.
+* **Testing Environment**: Access to Staging APIs for both the existing search and the new v1 search.
+* **Accuracy Threshold**: Target success is a **Rank #1** result for all common shorthand permutations.
 
-Ensure you have Python installed and the required libraries:
+---
 
+## 3. Installation & Setup
+
+### Prerequisites
+
+* **Python 3.12+**
+* **Required Libraries**: `pandas`, `requests`, `tqdm`, `xlsxwriter`
+
+### Steps
+
+1. **Clone the repository** to your local environment.
+2. **Install dependencies**:
 ```bash
-pip install -r requirements.txt
+pip install pandas requests tqdm xlsxwriter
 
 ```
 
-### 2. Prepare your Data
 
-Place your source file (e.g., `Acronyms_data - Sheet1.csv`) in the same folder. Ensure it has a column for the charity name and business number.
-
-### 3. Run the Report
-
-You only need to run the report script. It will automatically trigger the search runner if it doesn't find a results file:
-
-```bash
-python generate_report.py
-
-```
+3. **Configuration**: Update `BASIC_AUTH`, `USER_ID`, and `IMPACT_ID` in `search_runner.py` with valid staging credentials.
 
 ---
 
-## Understanding the Output
+## 4. File Functional Details
 
-The process will generate **`Final_Charity_Impact_Report.xlsx`**, which contains:
+### 🛠️ `search_runner.py` (Multi-Permutation Engine)
 
-1. **Executive Summary Tab:** For management. Shows the % improvement and how many "invisible" charities we have now made searchable.
-2. **Dev Debug Tab:** For engineers. Shows every failed search, the generated acronyms used, and a specific "Diagnostic" (Check, Tuning, or Regression) to guide the next technical sprint.
+* **Permutation Generator**: Automatically creates 5+ variations of every name, including Standard, Dotted, and various Hybrid variations.
+* **Multi-API Auditor**: Tests every generated term against the **Existing API** and the **New Search-v1 API** simultaneously.
+* **Concurrency**: Uses `ThreadPoolExecutor` to process large datasets (thousands of requests) efficiently.
+
+### 📊 `generate_report.py` (Diagnostic Brain)
+
+* **Data Exploder**: Transforms JSON results into a row-wise format so every acronym permutation is visible for individual evaluation.
+* **Success Metric Logic**: Specifically identifies "Unlocked" charities that failed in the old system but passed in the new one.
+* **Diagnostic Engine**: Assigns technical "Action Plans" to every failure to guide engineering fixes.
 
 ---
-**Target Goal:** 100% Acronym Discovery Rate.
 
------------------------------------------
-Code updated to perfrom permutaion and combination serach
+## 5. Output (O/P) Structure
 
-Key Highlights of this "Deep" Version:
-Winner Takes All: The Executive Summary reports the Best Possible Result we can give a donor if we use the right acronym.
+The tool generates **`Final_Technical_Audit_Report.xlsx`** with two primary layers:
 
-Permutation Audit Log: In the Dev_Debug sheet, there is a new column that lists every single acronym tried and whether it was a success (✅) or a failure (❌).
+### Tab 1: Executive_Summary (For Leadership)
 
-Winning Acronym Column: Specifically identifies which acronym variation actually "won" the search, allowing developers to see which patterns (like Dotted vs. Hybrid) are most effective.
+* **Total Charities Tested**: Total count of the dataset.
+* **Search Success (Top 3)**: Percentage of charities found in the top 3 results.
+* **Previously Invisible Charities**: Charities discoverable *only* via the New System.
+* **Acronym Discovery Rate**: Raw count of successful acronym-to-charity matches.
+* **Average Result Position**: The average rank (1.0 is the goal).
 
-Automatic Detection: If a charity was invisible in the old system but was found by any of our new permutations, it is counted as "Unlocked."
+### Tab 2: Developer_Action_Log (For Engineering)
+
+* **Tested Term**: The specific permutation used for that row (e.g., `D.C.D.L.`).
+* **Rank Old vs. Rank New**: Direct performance comparison for that specific term.
+* **Diagnostic Plan**: Clear instructions (e.g., *" Priority Fix: Regression"* or *"⚖️ Boost Relevancy"*).
+* **Comment**: Contextual explanation of the failure or success.
+
+---
+
+## 6. How to Interpret Elasticsearch "Boosting"
+
+When the report suggests **"⚖️ Boost Relevancy,"** it indicates that the charity was found, but not at Rank #1. Developers should:
+
+1. **Increase Field Weight**: Increase the `boost` value for the `acronym` or `alternative_name` fields in the Elasticsearch query.
+2. **Exact Match Multiplier**: Implement a higher weight for "Exact Matches" on acronyms vs. "Partial Matches" on full names.
+3. **Dot Normalization**: Ensure the analyzer treats dotted acronyms (`D.B.D.C.I.`) and plain acronyms (`DBDCI`) with equal weight.
