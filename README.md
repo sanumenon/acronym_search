@@ -83,3 +83,15 @@ The process will generate **`Final_Charity_Impact_Report.xlsx`**, which contains
 
 ---
 **Target Goal:** 100% Acronym Discovery Rate.
+
+-----------------------------------------
+Code updated to perfrom permutaion and combination serach
+
+Key Highlights of this "Deep" Version:
+Winner Takes All: The Executive Summary reports the Best Possible Result we can give a donor if we use the right acronym.
+
+Permutation Audit Log: In the Dev_Debug sheet, there is a new column that lists every single acronym tried and whether it was a success (✅) or a failure (❌).
+
+Winning Acronym Column: Specifically identifies which acronym variation actually "won" the search, allowing developers to see which patterns (like Dotted vs. Hybrid) are most effective.
+
+Automatic Detection: If a charity was invisible in the old system but was found by any of our new permutations, it is counted as "Unlocked."
