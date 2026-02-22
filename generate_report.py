@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import os
+import json
 from search_runner import run_extraction
 
 def generate_master_report(input_csv):
@@ -14,7 +15,7 @@ def generate_master_report(input_csv):
     target_col = 'account_name' if 'account_name' in df.columns else ('name' if 'name' in df.columns else df.columns[1])
 
     def get_rank(expected, found_str):
-        if pd.isna(found_str) or str(found_str).strip() == "": return 999
+        if pd.isna(found_str) or str(found_str).strip() == "" or found_str == "FAILURE": return 999
         expected_clean = str(expected).lower().strip()
         results = [n.lower().strip() for n in str(found_str).split('|')]
         for i, name in enumerate(results):
@@ -24,40 +25,38 @@ def generate_master_report(input_csv):
     df['rank_old'] = df.apply(lambda r: get_rank(r[target_col], r['users_api_acronym']), axis=1)
     df['rank_new'] = df.apply(lambda r: get_rank(r[target_col], r['recommended_api_acronym']), axis=1)
 
-    def diagnose(row):
-        if row['rank_old'] <= 3 and row['rank_new'] > 3: return "REGRESSION"
-        if row['rank_new'] == 999: return "CHECK: Not found"
-        if row['rank_new'] > 3: return "TUNING: Low rank"
-        return "PASS"
-
+    # --- SLT SUMMARY (Best Result Logic) ---
     total = len(df)
     slt_summary = pd.DataFrame({
-        "Strategic Metric": [
-            "Total Charities Tested", "Search Success (Top 3)", 
-            "Previously Invisible Charities", "Acronym Discovery Rate", "Average Result Position"
-        ],
-        "Baseline (Existing)": [
-            total, f"{(len(df[df['rank_old'] <= 3])/total)*100:.1f}%", "---", 
-            len(df[df['rank_old'] <= 3]), f"{df[df['rank_old'] != 999]['rank_old'].mean():.2f}"
-        ],
-        "New System (Search-v1)": [
-            total, f"{(len(df[df['rank_new'] <= 3])/total)*100:.1f}%", 
-            f"Unlocked {len(df[(df['rank_old'] > 3) & (df['rank_new'] <= 3)])}", 
-            len(df[df['rank_new'] <= 3]), f"{df[df['rank_new'] != 999]['rank_new'].mean():.2f}"
-        ]
+        "Strategic Metric": ["Total Tested", "Search Success (Top 3)", "Previously Invisible", "Avg Position"],
+        "Baseline (Existing)": [total, f"{(len(df[df['rank_old'] <= 3])/total)*100:.1f}%", "---", f"{df[df['rank_old'] != 999]['rank_old'].mean():.2f}"],
+        "New System (Best Permutation)": [total, f"{(len(df[df['rank_new'] <= 3])/total)*100:.1f}%", len(df[(df['rank_old'] > 3) & (df['rank_new'] <= 3)]), f"{df[df['rank_new'] != 999]['rank_new'].mean():.2f}"]
     })
 
-    dev_log = df[df['rank_new'] > 3].copy()
-    dev_log['Diagnostic'] = dev_log.apply(diagnose, axis=1)
+    # --- DEV DEBUG (Detailed Log Logic) ---
+    dev_log = df.copy()
     
-    output_name = "Final_Charity_Impact_Report.xlsx"
+    def format_audit(log_str):
+        try:
+            data = json.loads(log_str)
+            lines = []
+            for entry in data:
+                status = "✅" if entry['rank'] <= 3 else "❌"
+                lines.append(f"{status} {entry['term']} (Rank: {entry['rank']})")
+            return "\n".join(lines)
+        except: return log_str
+
+    dev_log['Full_Permutation_Audit'] = dev_log['permutation_audit_log'].apply(format_audit)
+    
+    output_name = "Final_Charity_Deep_Impact_Report.xlsx"
     with pd.ExcelWriter(output_name, engine='xlsxwriter') as writer:
         slt_summary.to_excel(writer, sheet_name='Executive_Summary', index=False)
-        # Added generated_acronyms library here
-        dev_cols = ['bn', target_col, 'acronyms', 'generated_acronyms', 'rank_old', 'rank_new', 'Diagnostic']
+        
+        # Dev sheet with detailed columns
+        dev_cols = ['bn', target_col, 'winning_acronym', 'rank_new', 'Full_Permutation_Audit', 'all_possible_acronyms']
         dev_log[dev_cols].to_excel(writer, sheet_name='Dev_Debug', index=False)
 
-    print(f"🎉 Report generated with Hybrid Acronyms: {output_name}")
+    print(f"🎉 Deep Report Complete: {output_name}")
 
 if __name__ == "__main__":
     generate_master_report('Acronyms_data - Sheet1.csv')
